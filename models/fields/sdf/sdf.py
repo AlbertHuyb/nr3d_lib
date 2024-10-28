@@ -27,6 +27,7 @@ from nr3d_lib.models.fields.sdf.utils import pretrain_sdf_sphere
 class MlpPESDF(ModelMixin, nn.Module):
     def __init__(
         self, 
+        sdf_scale=1.0,
         D=8, W=256, Ws=None, skips=[4], input_ch=3, n_rgb_used_output=0, n_frequencies=6, 
         activation={'type': 'softplus', 'beta':100.}, output_activation=None,
         radius_init=0.6, inside_out=False, 
@@ -51,6 +52,8 @@ class MlpPESDF(ModelMixin, nn.Module):
         else:
             D = len(Ws)
 
+        self.sdf_scale = sdf_scale
+        
         nl, gain, init_fn, first_init_fn = get_nonlinearity(activation)
         last_nl, last_gain, last_init_fn, _ = get_nonlinearity(output_activation)
 
@@ -183,7 +186,7 @@ class MlpPESDF(ModelMixin, nn.Module):
                 retain_graph=has_grad,
                 only_inputs=True)[0]
         if not nablas_has_grad:
-            ret['nablas'] = ret['nablas'].detach()
+            ret['nablas'] = ret['nablas'].detach() * self.sdf_scale / self.space.scale0
         if not has_grad:
             ret['sdf'] = ret['sdf'].detach()
             ret['h'] = ret['h'].detach()
