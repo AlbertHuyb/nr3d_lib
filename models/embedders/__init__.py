@@ -10,6 +10,9 @@ def get_embedder(embed_cfg:dict, input_dim=3, use_tcnn_backend=None) -> Tuple[nn
     use_tcnn_backend = embed_cfg.pop('use_tcnn_backend', False if use_tcnn_backend is None else use_tcnn_backend)
     if (tp:=embed_cfg['type']) == 'none' or tp == 'identity':
         enc, n_encoded_dims = nn.Identity(), input_dim
+    elif tp == 'urban_nerf':
+        enc = nn.Linear(input_dim, 12)
+        n_encoded_dims = 0
     else:
         if use_tcnn_backend:
             from nr3d_lib.models.tcnn_adapter import TcnnEncoding, encoding_map

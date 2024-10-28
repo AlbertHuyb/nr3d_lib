@@ -181,6 +181,8 @@ class RadianceNet(ModelMixin, nn.Module):
         self.use_nablas = self.use_view_dirs if use_nablas is None else use_nablas
         self.use_extrafeat = n_rgb_used_extrafeat > 0
         self.use_appear_embedding = n_appear_embedding > 0
+        self.appear_embedding_type = appear_embed_cfg['type']
+        
 
         # x
         if self.use_pos:
@@ -235,9 +237,24 @@ class RadianceNet(ModelMixin, nn.Module):
             h_extra = self.embed_fn_h_extra(h_extra)
         if self.use_appear_embedding:
             h_appear_embed = self.embed_fn_appear(h_appear_embed)
+        # import pdb; pdb.set_trace()
         uses = self._uses
-        radiance_input = torch.cat( [i for idx, i in enumerate((x, v, n, h_extra, h_appear_embed)) if uses[idx]] , dim=-1)
-        radiances = self.blocks(radiance_input)
+        if not self.appear_embedding_type == 'urban_nerf':
+            radiance_input = torch.cat( [i for idx, i in enumerate((x, v, n, h_extra, h_appear_embed)) if uses[idx]] , dim=-1)
+            radiances = self.blocks(radiance_input)
+        elif self.use_appear_embedding:
+            # import pdb; pdb.set_trace()
+            radiance_input = torch.cat( [i for idx, i in enumerate((x, v, n, h_extra)) if uses[idx]] , dim=-1)
+            radiances = self.blocks(radiance_input)
+            # reshape the Nx12 h_appear_embed to Nx3x3 mat and Nx3x1 vec
+            trans_mat = h_appear_embed.view(-1, 3, 4)[:, :3, :3]
+            trans_bias = h_appear_embed.view(-1, 3, 4)[:, :3, 3:]
+            # transform the radiance, and then add the bias
+            radiances = radiances.view(-1, 3, 1)
+            # radiances: Nx3x1, trans_mat: Nx3x3, trans_bias: Nx3x1
+            radiances = torch.matmul(trans_mat.half(), radiances) + trans_bias
+            radiances = radiances.view(-1, 3)
+            
         return dict(radiances=radiances)
 
 class NeRFModel(NeRFRendererMixin, EmbededNeRF):
